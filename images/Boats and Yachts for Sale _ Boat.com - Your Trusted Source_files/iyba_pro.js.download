@@ -1,0 +1,851 @@
+jQuery(document).ready(function () {
+    jQuery('.numberValidation').keypress(function (key) {
+        var charCode = (key.which) ? key.which : event.keyCode;
+        if (charCode > 31 && (charCode < 48 || charCode > 57))
+            return false;
+        return true;
+    });
+    jQuery('.paymentNumberValidation').keypress(function (key) {
+        var charCode = (key.which) ? key.which : event.keyCode;
+        if (charCode > 31 && charCode != 46 && (charCode < 48 || charCode > 57))
+            return false;
+    });
+    if(jQuery('#iyba-charters-filter').length || jQuery('#frm-iyba-charters').length){
+        document.getElementById("btn_search_charter").addEventListener('click', searchIYBACharter);
+    }
+    if (jQuery('#iyba-yachts-filter').length || jQuery('#frm-iyba-yachts').length) {
+        document.getElementById("btn_search_vessel").addEventListener('click', searchIYBAVessel);
+        jQuery(".type").change(function () {
+            jQuery("#iyba-yachts-filter").submit();
+        });
+        
+        /*
+         * response as per brand link
+         */
+        jQuery(".quickBrandLink").on("click", function () {
+            jQuery(".quickBrandLink.active").removeClass("active");
+            jQuery(this).addClass("active");
+            if (typeof jQuery(this).attr('data-id') !== "undefined" && jQuery(this).attr('data-id') != '') {
+                jQuery("#brand").val(jQuery(this).attr('data-id')).trigger("change.select2");
+                searchIYBAVessel();
+            }
+        });
+
+        /*
+         * response as per category link
+         */
+        jQuery(".quickCategoryLink").on("click", function () {
+            jQuery(".quickCategoryLink.active").removeClass("active");
+            jQuery(this).addClass("active");
+            if (typeof jQuery(this).attr('data-id') !== "undefined" && jQuery(this).attr('data-id') != '') {
+                jQuery("#category").val(jQuery(this).attr('data-id')).trigger("change.select2");
+                searchIYBAVessel();
+            }
+        });
+
+        /*
+         * response as per state link
+         */
+        jQuery(".quickStateLink").on("click", function () {
+            jQuery(".quickStateLink.active").removeClass("active");
+            jQuery(this).addClass("active");
+            if (typeof jQuery(this).attr('data-id') !== "undefined" && jQuery(this).attr('data-id') != '') {
+                jQuery("#state").val(jQuery(this).attr('data-id')).trigger("change.select2");
+                searchIYBAVessel();
+            }
+        });
+
+        jQuery('#brand').change(function () {
+            jQuery(".quickBrandLink.active").removeClass("active");
+        });
+        jQuery('#category').change(function () {
+            jQuery(".quickCategoryLink.active").removeClass("active");
+        });
+        jQuery('#state').change(function () {
+            jQuery(".quickStateLink.active").removeClass("active");
+        });
+    }
+    
+    /*
+     * submit search form
+     */
+    if (jQuery('#frmIYBASearch').length) {
+        jQuery(".frmIYBASearch").trigger("reset");        
+        jQuery("#sf-brand, #sf-newused, #sf-type, #sf-category, #sf-newused, #sf-country, #sf-state, #sf-city").val('').trigger("change.select2");
+
+        /*
+         *  Update categories dropdown as per selected type
+         */
+        jQuery(".sf-type").change(function (e) {
+            e.preventDefault();
+            jQuery('select[name="category[]"]').find('option').remove();
+            if (jQuery(this).val()) {
+                var $form = jQuery(this).closest('form');
+
+                jQuery.ajax({
+                    type: "POST",
+                    url: iybaFrontendAjax.ajaxurl,
+                    data: {
+                        type: jQuery(this).val(),
+                        action: "iyba_categories",
+                        id: iybaFrontendAjax.post_id,
+                        security: iybaFrontendAjax.check_nonce
+                    },
+                    beforeSend: function () {
+                        jQuery(".category").prop("disabled", true);
+                    },
+                    success: function (response) {
+                        jQuery(".sf-type").val('').trigger("change.select2");
+                        jQuery(".sf-category").prop("disabled", false);
+                        var data = jQuery.parseJSON(response);
+
+                        if (data.error_msg != '') {
+                            console.log(data.error_msg);
+                        } else {
+                            if (typeof data.category_type !== "undefined" && data.category_type != '' && jQuery("#sf-type option[value='" + data.category_type + "']").length > 0) {
+                                $form.find('select[name="type"]').val(data.category_type).trigger('change.select2');
+                            }
+                            var categories = data.response;
+                            if (Object.keys(categories).length > 0) {
+                                jQuery.each(categories, function (key, text) {
+                                    var newOption = new Option(text, text, false, false);
+                                    $form.find('select[name="category[]"]').append(newOption).trigger('change');
+                                    $form.find('select[name="category[]"]').val(null).trigger('change');
+                                });
+                            }
+                        }
+                    },
+                    error: function (jqXHR, textStatus, errorThrown) {
+                        jQuery(".sf-category").prop("disabled", false);
+                        if (textStatus == 'error') {
+                            console.log(errorThrown);
+                        }
+                    },
+                    cache: false
+                });
+            }
+        });
+        jQuery("form#frmIYBASearch").submit(function(e) {
+            e.preventDefault();
+            var formData = new FormData(this);
+            jQuery.ajax({
+                url: iybaFrontendAjax.ajaxurl,
+                type: 'POST',
+                data: formData,
+                beforeSend: function () {
+                    jQuery('.iyba_pro-forms-input').attr("readonly", true);
+                },
+                success: function (data) {
+                    jQuery('.iyba_pro-forms-input').attr("readonly", false);
+                    var response = jQuery.parseJSON(data);
+                    if (response.error_msg != '') {
+                        //alert('xxx');
+						//window.location.href = response.page_url;
+						window.location.href = 'https://wordpress-1112523-4864580.cloudwaysapps.com/yachts-for-sale/';
+                    } else {
+                        window.location.href = response.page_url;
+                    }
+                    jQuery("form#frmIYBASearch").trigger("reset");
+                    jQuery(".sf-brand, .sf-type, .sf-category, .sf-newused, .sf-country, .sf-state, .sf-city").val('').trigger("change.select2");
+                },
+                error: function (jqXHR, textStatus, errorThrown) {
+                    jQuery('.iyba_pro-forms-input').attr("readonly", false);
+                    if (textStatus == 'error') {
+                        alert(errorThrown);
+                    }
+                },
+                cache: false,
+                contentType: false,
+                processData: false
+            });
+        });
+    }
+});
+
+if (jQuery('#iyba-yachts-filter').length || jQuery('#iyba-charters-filter').length || jQuery('#frmIYBASearch').length) {
+    jQuery('.iyba-select').select2({
+        allowClear: true,
+        width: '100%'
+    });
+    jQuery('.iyba-select-nac').select2({
+        allowClear: false,
+        width: '100%'
+    });
+    jQuery(".category").select2({
+        allowClear: true,
+        language: {
+            noResults: function () {
+                return "Select Power or Sail";
+            },
+        },
+        escapeMarkup: function (e) {
+            return e;
+        },
+    });
+}
+
+if (jQuery(document).width() < 992) {
+    jQuery("#vessel_list").removeClass('list list-view').addClass('grid grid-view');
+    jQuery(".list-grid-btns").hide();
+}
+
+if (jQuery('.list-grid-btns').length){
+    if(jQuery("#v").val() == 1){
+        jQuery('#vessel_list').removeClass('list-view');
+        jQuery('#vessel_list').addClass('grid-view');
+        updateListingView('grid');
+    }else if(jQuery("#v").val() == 0 && jQuery("#v").val() != ''){
+        jQuery('#vessel_list').addClass('list-view');
+        jQuery('#vessel_list').removeClass('grid-view');
+        updateListingView('list');
+    }
+    jQuery('#list').click(function (event) {
+        event.preventDefault();
+        jQuery('#vessel_list').addClass('list-view');
+        jQuery('#vessel_list').removeClass('grid-view');
+        jQuery("#v").val(0);
+        if (jQuery('#iyba-yachts-filter').length){
+            jQuery("#iyba-yachts-filter").submit();
+        }
+        if (jQuery('#iyba-charters-filter').length){
+            jQuery("#iyba-charters-filter").submit();
+        }
+    });
+    jQuery('#grid').click(function (event) {
+        event.preventDefault();
+        jQuery('#vessel_list').removeClass('list-view');
+        jQuery('#vessel_list').addClass('grid-view');
+        jQuery("#v").val(1);
+        if (jQuery('#iyba-yachts-filter').length){
+            jQuery("#iyba-yachts-filter").submit();
+        }
+        if (jQuery('#iyba-charters-filter').length){
+            jQuery("#iyba-charters-filter").submit();
+        }
+    });
+}
+
+if (jQuery('#frm-iyba-charters').length && jQuery('.list-grid-btns').length){
+    jQuery('.btn-group a').click(function () {
+        if (jQuery(this).hasClass('current')) {
+            jQuery(this).removeClass('current');
+        } else {
+            jQuery('.btn-group a.current').removeClass('current');
+            jQuery(this).addClass('current');
+        }
+    });
+}
+
+function updateListingView(view){
+    jQuery('.list-grid-btns a.current').removeClass('current');
+    jQuery("#"+view).addClass('current');
+}
+
+if (jQuery('.btn-iyba-search').length) {
+    jQuery('#btn-iyba-search').click(function () {
+        jQuery("i", this).toggleClass("fa fa-plus fa fa-minus");
+    });
+    jQuery(function () {
+        jQuery(document).ready(function () {
+            if (jQuery(document).width() <= 900) {
+                jQuery('#btn_search_vessel').click(function () {
+                    jQuery('#btn-iyba-search').trigger("click");
+                });
+            }
+        });
+    });
+}
+jQuery(document).keypress(function (event) {
+    if (jQuery('#iyba-yachts-filter').length || jQuery('#iyba-charters-filter').length) {
+        if ((event.keyCode ? event.keyCode : event.which) == '13') {
+            jQuery('.btn_search_vessel').click();
+        }
+    }
+});
+
+function resetSearch() {
+    jQuery("#sortby, #brand, #city, #state, #country, #regions, #newused, #category").find("option:selected").prop("selected", false);
+    jQuery("#sortby, #brand, #city, #state, #country, #regions, #newused, #category").val('').trigger("change.select2");
+    jQuery("#boat_name,#vid,#length_min,#length_max,#price_min,#price_max,#year_min,#year_max").val("");
+    searchIYBAVessel();
+}
+function resetCharterSearch(){
+    jQuery("#regions, #price, #sortby").find("option:selected").prop("selected", false).trigger("change.select2");
+    jQuery("#guest,.location,.type").val("");
+    jQuery('.type').prop('checked', false);
+    searchIYBACharter();
+}
+function searchIYBAVessel() {
+    jQuery("#vp").val(1);
+    jQuery("#vflag").val('true');
+    jQuery("#btn-iyba-search i").removeClass('fa-minus').addClass('fa-plus');
+    jQuery("#iyba_box_section").removeClass('in');
+    jQuery("#iyba-yachts-filter").submit();
+}
+function searchIYBACharter() {
+    jQuery("#vp").val(1);
+    jQuery("#vflag").val('true');
+    jQuery("#btn-iyba-search i").removeClass('fa-minus').addClass('fa-plus');
+    jQuery("#iyba_box_section").removeClass('in');
+    jQuery("#iyba-charters-filter").submit();
+}
+
+if (jQuery('#frm-iyba-follow-yacht').length) {
+    jQuery('#save_follow_yacht_dialog').on('show.bs.modal', function (e) {
+        jQuery("#save_follower_message").html('');
+        jQuery("#txtCustomerFollowEmail").removeClass("sf_txt_invalid");
+    });
+    jQuery("#txtCustomerFollowEmail").keyup(function (event) {
+        jQuery("#save_follower_message").html('');
+        jQuery("#txtCustomerFollowEmail").removeClass("sf_txt_invalid");
+    });
+}
+
+jQuery(document).on("click","#toggleMyFavoriteVessel",function(){
+    var vessel_id = jQuery(this).data("id");
+    var status = jQuery(this).data("status");
+    var price = jQuery(this).data("price_usd");
+    var old_price = jQuery(this).data("old_price");
+    var vessel_img = jQuery(this).data("img_path");
+    var created_timestamp = jQuery(this).data("vessel_created_date");
+    var updated_timestamp = jQuery(this).data("vessel_updated_date");
+    var follow_title = jQuery(this).data("follow_title");
+    var detail_page_url = jQuery(this).data("detail_page_url");
+    
+    if(vessel_id > 0){
+        var user_eid = ((typeof jQuery('#user_eid').val() !== "undefined" && jQuery("#user_eid").val().trim() != '') ? jQuery("#user_eid").val() : '');
+        var user_fullname = ((typeof jQuery('#user_fullname').val() !== "undefined" && jQuery("#user_fullname").val().trim() != '') ? jQuery("#user_fullname").val() : '');
+        if (jQuery(this).find("span").hasClass("star-unfollow") ) {
+            jQuery("#frm-iyba-unfollow-yacht").trigger("reset");
+            jQuery("#unfollow_yacht_dialog").appendTo(jQuery('body')).modal('show');
+            jQuery("#unfollow_yacht_content").html(
+                '<div class="form-group mb-2"><label for="unfollowYachtLabel" class="unfollowYachtLabel">Are you sure want to unfollow this yacht?</label></div>\n\
+                <div class="form-group btnRemoveFollowYacht_section">\n\
+                    <input type="button" name="btnRemoveFollowYacht" id="btnRemoveFollowYacht" class="btn btn-primary mb-2 btnRemoveFollowYacht" value="YES" onclick="return removeCustomerFollowYacht(' + "'" + user_eid + "'" + ',' + vessel_id  + ')">\n\
+                    <input type="button" class="btn btn-primary mb-2 btnCancelFollowYacht" id="btnCancelFollowYacht" data-dismiss="modal" aria-hidden="true" value="NO" />\n\
+                </div>\n\
+                <div class="rf_message_wrapper"><div id="unfollower_message" class="unfollower_message"></div></div>\n\
+            ');
+        }else{
+            jQuery("#frm-iyba-follow-yacht").trigger("reset");
+            jQuery("#save_follow_yacht_dialog").appendTo(jQuery('body')).modal('show');
+            jQuery("#save_follow_yacht_content").html(
+                '<div class="form-group customerFollowEmail_section">\n\
+                    <input type="email" name="txtCustomerFollowEmail" class="form-control txtCustomerFollowEmail" id="txtCustomerFollowEmail" value="'+user_eid+'" aria-describedby="follow yacht email" placeholder="Enter your email address (required)" />\n\
+                </div>\n\
+                <div class="form-group customerFollowFName_section">\n\
+                    <input type="text" name="txtCustomerFollowFName" class="form-control txtCustomerFollowFName" id="txtCustomerFollowFName" value="'+user_fullname+'" aria-describedby="follower full name" placeholder="Enter your full name(optional)" />\n\
+                </div>\n\
+                <div class="form-group btnSaveFollowYacht_section">\n\
+                    <input type="button" name="btnSaveFollowYacht" id="btnSaveFollowYacht" class="btn btn-block btnSaveFollowYacht" value="SAVE" onclick="saveCustomerFollowYacht(' + vessel_id + ',' + "'" + status + "'" + ',' + price + ',' + old_price + ',' + "'" + vessel_img + "'" + ',' + "'" + created_timestamp + "'" + ',' + "'" + updated_timestamp + "'" + ',' + "'" + follow_title + "'" + ',' + "'" + detail_page_url + "'" + ')">\n\
+                </div>\n\
+                <div class="sf_message_wrapper"><div id="save_follower_message" class="save_follower_message"></div></div>\n\
+            ');
+        }
+    }
+    
+});
+
+function removeCustomerFollowYacht(user_eid, vessel_id){
+    if(user_eid != '' && vessel_id > 0){
+        if (!checkEmail(user_eid)) {
+            jQuery("#unfollower_message").show().html('Given Email address is not valid!');
+            return false;
+        }
+        var formData = jQuery('#frm-iyba-unfollow-yacht').serializeArray();
+        formData.push({name: 'user_eid', value: user_eid});
+        formData.push({name: 'vessel_id', value: vessel_id});
+        jQuery.ajax({
+            type: "POST",
+            url: iybaFrontendAjax.ajaxurl,
+            data: formData,
+            beforeSend: function () {
+                jQuery("#btnRemoveFollowYacht").val('Processing....').attr('disabled', true);
+            },
+            success: function (response) {
+                jQuery("#btnRemoveFollowYacht").val('YES').attr('disabled', false);
+                var data = jQuery.parseJSON(response);
+                if (data.error_msg != '') {
+                    jQuery("#unfollower_message").show().html(data.error_msg);
+                } else {
+                    jQuery("#frm-iyba-unfollow-yacht").trigger("reset");
+                    jQuery("#unfollower_message").show().css("color","green").html('Thank you! You\'ve successfully unfollow this yacht.');
+                    jQuery("#btnRemoveFollowYacht").val('YES').attr('disabled', true);
+                    location.reload();
+                }
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                jQuery("#btnRemoveFollowYacht").val('YES').attr('disabled', false);
+            },
+            cache: false
+        });
+    }
+}
+
+function saveCustomerFollowYacht(vessel_id, status, price, old_price, vessel_img, created_timestamp, updated_timestamp, follow_title, detail_page_url){
+    jQuery("#save_follower_message").html('');
+    if(vessel_id > 0){
+        if (!jQuery('#vquery').val()) {
+            location.reload();
+            return false;
+        }
+        if(jQuery("#txtCustomerFollowEmail").val() == ''){
+            jQuery("#save_follower_message").show().html('Please enter email address!');
+            jQuery("#txtCustomerFollowEmail").focus().addClass("sf_txt_invalid");
+            return false;
+        }
+        if (!checkEmail(jQuery("#txtCustomerFollowEmail").val())) {
+            jQuery("#save_follower_message").show().html('Please enter valid email address!');
+            jQuery("#txtCustomerFollowEmail").focus().addClass("sf_txt_invalid");
+            return false;
+        }
+        var formData = jQuery('#frm-iyba-follow-yacht').serializeArray();
+        formData.push({name: 'pageurl', value: iybaFrontendAjax.page_url });
+        formData.push({name: 'vquery', value: jQuery('#vquery').val()});
+        formData.push({name: 'vessel_id', value: vessel_id});
+        formData.push({name: 'status', value: status});
+        formData.push({name: 'price', value: price});
+        formData.push({name: 'old_price', value: old_price});
+        formData.push({name: 'vessel_img', value: vessel_img});
+        formData.push({name: 'created_timestamp', value: created_timestamp});
+        formData.push({name: 'updated_timestamp', value: updated_timestamp});
+        formData.push({name: 'follow_title', value: follow_title});
+        formData.push({name: 'detail_page_url', value: detail_page_url});
+        jQuery.ajax({
+            type: "POST",
+            url: iybaFrontendAjax.ajaxurl,
+            data: formData,
+            beforeSend: function () {
+                jQuery("#btnSaveFollowYacht").val('Processing....').attr('disabled', true);
+            },
+            success: function (response) {
+                jQuery("#btnSaveFollowYacht").val('Save').attr('disabled', false);
+                var data = jQuery.parseJSON(response);
+                if (data.error_msg != '') {
+                    jQuery("#save_follower_message").show().html(data.error_msg);
+                } else {
+                    jQuery("#frm-iyba-follow-yacht").trigger("reset");
+                    jQuery("#save_follower_message").show().css("color","green").html('Thank you! You will now receive notifications when this boat has a price or status change. You can unfollow at any time.');
+                    jQuery("#btnSaveFollowYacht").val('Save').attr('disabled', true);
+                }
+                location.reload();
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                jQuery("#btnSaveFollowYacht").val('Save').attr('disabled', false);
+            },
+            cache: false
+        });
+    }
+}
+
+function addCommas(nStr) {
+    nStr = JSON.stringify(nStr).replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1,");
+    return nStr;
+}
+
+function get_location_format_js(vessels_city, vessels_state, vessels_country) {
+    var l_city = '',
+            l_state = '',
+            l_country = '';
+    var l_c_comma_status = false,
+            l_s_comma_status = false,
+            l_co_comma_status = false;
+    if (vessels_city != '' && vessels_city != 'undefined' && vessels_city != null && vessels_city.toLowerCase() != 'null' && vessels_city.toLowerCase() != 'unknown') {
+        l_city = vessels_city.trim();
+        l_c_comma_status = true;
+    }
+    if (vessels_state != '' && vessels_state != 'undefined' && vessels_state != null && vessels_state.toLowerCase() != 'null' && vessels_state.toLowerCase() != 'unknown') {
+        l_state = vessels_state.trim();
+        l_s_comma_status = true;
+    }
+    if (vessels_country != '' && vessels_country != 'undefined' && vessels_country != null && vessels_country.toLowerCase() != 'null' && vessels_country.toLowerCase() != 'unknown') {
+        l_country = vessels_country.trim();
+        l_co_comma_status = true;
+    }
+    if (l_c_comma_status == true && (l_s_comma_status == true || l_co_comma_status == true)) {
+        l_city = l_city + ', ';
+    }
+    if (l_s_comma_status == true && l_co_comma_status == true) {
+        l_state = l_state + ', ';
+    }
+    return l_city + '' + l_state + '' + l_country;
+}
+
+function checkEmail(email) {
+    if (email != '') {
+        var regExp = /^([\w-\.]+)@((\[[0-9]{1,9}\.[0-9]{1,9}\.[0-9]{1,9}\.)|(([\w-]+\.)+))([a-zA-Z]{2,9}|[0-9]{1,9})(\]?)$/;
+        return regExp.test(email);
+    }
+}
+
+if (jQuery('#iyba-save-search-filter').length) {
+    document.getElementById("btnSaveSearch").addEventListener('click', saveCustomerSearch);
+    jQuery("#txtSearchTitle").keyup(function (event) {
+        jQuery("#save_search_message").html('');
+        jQuery("#txtSearchTitle").removeClass("ss_txt_invalid");
+    });
+    jQuery("#txtCustomerEmail").keyup(function (event) {
+        jQuery("#save_search_message").html('');
+        jQuery("#txtCustomerEmail").removeClass("ss_txt_invalid");
+    });
+}
+
+function saveCustomerSearch(){
+    jQuery("#save_search_content").html('');
+    if (!jQuery('#txt_total_vessel').val() || jQuery('#txt_total_vessel').val() <= 0) {
+        jQuery("#save_search_message").show().html('Sorry, your search did not match any of our listings!');
+        return false;
+    }
+    if (!jQuery('#vids').val() && jQuery('#vp').val() == 1) {
+        location.reload();
+        return false;
+    }
+    if (!jQuery('#vquery').val()) {
+        location.reload();
+        return false;
+    }
+    if (!jQuery("#txtSearchTitle").val()) {
+        jQuery("#save_search_message").show().html('Please enter search name!');
+        jQuery("#txtSearchTitle").focus().addClass("ss_txt_invalid");
+        return false;
+    }
+    if (!jQuery("#txtCustomerEmail").val()) {
+        jQuery("#save_search_message").show().html('Please enter email address!');
+        jQuery("#txtCustomerEmail").focus().addClass("ss_txt_invalid");
+        return false;
+    }
+    if (!checkEmail(jQuery("#txtCustomerEmail").val())) {
+        jQuery("#save_search_message").show().html('Please enter valid email address!');
+        jQuery("#txtCustomerEmail").focus().addClass("ss_txt_invalid");
+        return false;
+    }
+    var formData = jQuery('#iyba-save-search-filter').serializeArray();
+    formData.push({name: 'pageurl', value: iybaFrontendAjax.page_url });
+    formData.push({name: 'vids', value: jQuery('#vids').val()});
+    formData.push({name: 'vquery', value: jQuery('#vquery').val()});
+    formData.push({name: 'current_page', value: jQuery('#vp').val()});
+    formData.push({name: 'type', value: jQuery('input[name="type"]:checked').val()});
+    formData.push({name: 'brand', value: jQuery('#brand').val()});
+    formData.push({name: 'model', value: jQuery('#model').val()});
+    formData.push({name: 'category', value: jQuery('#category').val()});
+    formData.push({name: 'vessel_name', value: jQuery('#vnames').val()});
+    formData.push({name: 'vessel_id', value: jQuery('#vid').val()});
+    formData.push({name: 'year_from', value: jQuery('#year_min').val()});
+    formData.push({name: 'year_to', value: jQuery('#year_max').val()});
+    formData.push({name: 'length_from', value: jQuery('#length_min').val()});
+    formData.push({name: 'length_to', value: jQuery('#length_max').val()});
+    formData.push({name: 'price_from', value: jQuery('#price_min').val()});
+    formData.push({name: 'price_to', value: jQuery('#price_max').val()});
+    formData.push({name: 'boat_condition', value: jQuery('#newused').val()});
+    formData.push({name: 'city', value: jQuery('#city').val()});
+    formData.push({name: 'state', value: jQuery('#state').val()});
+    formData.push({name: 'country', value: jQuery('#country').val()});
+    formData.push({name: 'regions', value: jQuery('#regions').val()});
+    formData.push({name: 'sortby', value: jQuery('#sortby').val()});
+    formData.push({name: 'txt_total_vessel', value: jQuery('#txt_total_vessel').val()});
+
+    jQuery.ajax({
+        type: "POST",
+        url: iybaFrontendAjax.ajaxurl,
+        data: formData,
+        beforeSend: function () {
+            jQuery("#btnSaveSearch").val('Processing....').attr('disabled', true);
+        },
+        success: function (response) {
+            jQuery("#btnSaveSearch").val('Save').attr('disabled', false);
+            var data = jQuery.parseJSON(response);
+            
+            if (data.error_msg != '') {
+                jQuery("#save_search_message").show().html(data.error_msg);
+                return false;
+            } else {
+               jQuery("#iyba-save-search-filter").trigger("reset");
+               jQuery("#save_search_dialog").appendTo(jQuery('body')).modal('show');
+               jQuery("#save_search_content").html('Thank you! You will now receive notifications when yachts matching your search criteria have entered the market or changed in price. You can unsubscribe at any time.');
+            }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            jQuery("#btnSaveSearch").val('Save').attr('disabled', false);
+        },
+        cache: false
+    });
+}
+
+function searchAdvertiseIYBAVessel(alias) {
+    var current_page = 0;
+    var flag = false;
+    var reset = false;
+    var no_result = false;
+    var waitForNextCall = false;
+    jQuery("#vessel_advertise_list_"+ alias).empty();
+    load_advertise_yachts(alias, current_page, flag, reset, no_result, waitForNextCall);
+}
+
+/*
+ *  return filter list of adverting yachts
+ *
+ */
+var load_advertise_yachts = function (alias, current_page, flag, reset, no_result, waitForNextCall) {
+    var vesselAdListDiv = jQuery("#vessel_advertise_list_"+alias);
+    if (waitForNextCall) {
+        return false;
+    }
+    waitForNextCall = true;
+    var query = '', sel_brand = '', sel_type = '', sel_category = '';
+    var per_page_limit = jQuery("#per_page_limit").val();
+    // status
+    query += '&status=' + ((typeof jQuery('#status_'+alias).val() !== "undefined" && jQuery('#status_'+alias).val() != '') ? jQuery('#status_'+alias).val() : 'On,Under Contract');
+    // broker id
+    query += (typeof jQuery('#broker_id_'+alias).val() !== "undefined" && jQuery('#broker_id_'+alias).val() != '') ? '&broker_id=' + jQuery('#broker_id_'+alias).val() : '';
+    // brand (Manufacturer)
+    if (typeof jQuery('#default_manufacturer_id_'+alias).val() !== "undefined" && jQuery('#default_manufacturer_id_'+alias).val() != '') {
+        sel_brand = jQuery('#default_manufacturer_id_'+alias).val();
+        query += '&brand=' + jQuery('#default_manufacturer_id_'+alias).val().replace(/&/g, "_").replace(/amp;/g, "_");
+    }
+    // Vessel ID
+    query += ((typeof jQuery('#vessel_ids_'+alias).val() !== "undefined" && jQuery('#vessel_ids_'+alias).val() != '') ? '&vessel_ids=' + jQuery('#vessel_ids_'+alias).val() : '');
+    // brokerage id
+    if (typeof jQuery('#default_brokerage_id_'+alias).val() !== "undefined" && jQuery('#default_brokerage_id_'+alias).val() != '') {
+        query += '&brokerage_id=' + jQuery('#default_brokerage_id_'+alias).val();
+    }
+    // Type
+    if (typeof jQuery('#default_category_type_'+alias).val() !== "undefined" && jQuery('#default_category_type_'+alias).val() != '') {
+        sel_type = jQuery('#default_category_type_'+alias).val();
+        query += '&type=' + sel_type; 
+    } else if (typeof jQuery('#type_'+alias).val() !== "undefined" && jQuery('#type_'+alias).val() != '') {
+        sel_type = jQuery('#type_'+alias).val();
+        query += '&type=' + sel_type;
+    }
+    // Category
+    if (typeof jQuery('#category_'+alias).val() !== "undefined" && jQuery('#category_'+alias).val() != '') {
+        sel_category = jQuery('#category_'+alias).val();
+        query += '&category=' + sel_category;
+    }
+    // Year
+    if (typeof jQuery('#minYear_'+alias).val() !== "undefined" && jQuery('#minYear_'+alias).val() != '' && jQuery('#minYear_'+alias).val() >= 0 && typeof jQuery('#maxYear_'+alias).val() !== "undefined" && jQuery('#maxYear_'+alias).val() != '' && jQuery('#maxYear_'+alias).val() >= 0) {
+        query += '&year=' + jQuery('#minYear_'+alias).val() + ',' + jQuery('#maxYear_'+alias).val();
+    }
+    // Length
+    query += '&lengthtype=' + ((typeof jQuery('#lengthtype_'+alias).val() !== "undefined" && jQuery('#lengthtype_'+alias).val() != '') ? jQuery('#lengthtype_'+alias).val() : 'ft');
+    if (typeof jQuery('#minLength_'+alias).val() !== "undefined" && jQuery('#minLength_'+alias).val() != '' && jQuery('#minLength_'+alias).val() >= 0 && typeof jQuery('#maxLength_'+alias).val() !== "undefined" && jQuery('#maxLength_'+alias).val() != '' && jQuery('#maxLength_'+alias).val() >= 0) {
+        query += '&length=' + jQuery('#minLength_'+alias).val() + ',' + jQuery('#maxLength_'+alias).val();
+    }
+    // Price
+    query += '&currency=' + ((typeof jQuery('#currency_'+alias).val() !== "undefined" && jQuery('#currency_'+alias).val() != '') ? jQuery('#currency_'+alias).val() : 'usd');
+    if (typeof jQuery('#minPrice_'+alias).val() !== "undefined" && jQuery('#minPrice_'+alias).val() != '' && jQuery('#minPrice_'+alias).val() >= 0 && typeof jQuery('#maxPrice_'+alias).val() !== "undefined" && jQuery('#maxPrice_'+alias).val() != '' && jQuery('#maxPrice_'+alias).val() >= 0) {
+        query += '&price=' + jQuery('#minPrice_'+alias).val() + ',' + jQuery('#maxPrice_'+alias).val();
+    }
+    // Condition
+    if (typeof jQuery('#condition_'+alias).val() !== "undefined" && jQuery('#condition_'+alias).val() != '') {
+        query += '&condition=' + jQuery('#condition_'+alias).val();
+    }
+    // State
+    if (typeof jQuery('#state_'+alias).val() !== "undefined" && jQuery('#state_'+alias).val() != '') {
+        query += '&state=' + jQuery('#state_'+alias).val();
+    }
+    // Limit
+    query += (per_page_limit > 0) ? '&limit=' + per_page_limit : '';
+    // Sort
+    query += '&sort=' + ((typeof jQuery('#sort_'+alias).val() !== "undefined" && jQuery('#sort_'+alias).val()) ? jQuery('#sort_'+alias).val() : 'created,1');
+    // price drop
+    var price_reduced_flag = false;
+    if (typeof jQuery('#price_updated_in_'+alias).val() !== "undefined" && jQuery('#price_updated_in_'+alias).val() != '' && jQuery('#price_updated_in_'+alias).val() > 0 && typeof jQuery('#price_reduced_by_'+alias).val() !== "undefined" && jQuery('#price_reduced_by_'+alias).val() != '' && jQuery('#price_reduced_by_'+alias).val() >= 0) {
+        price_reduced_flag = true;
+        query += '&priceloweredamount=' + jQuery('#price_reduced_by_'+alias).val() + '&pricelowereddays=' + jQuery('#price_updated_in_'+alias).val();
+    }
+    // Global Api Filters
+    if (typeof jQuery('#global_api_filters_'+alias).val() !== "undefined" && jQuery('#global_api_filters_'+alias).val() != '') {
+        query += ((jQuery('#global_api_filters_'+alias).val().match("^&")) ? jQuery('#global_api_filters_'+alias).val() : '&' + jQuery('#global_api_filters_'+alias).val());
+    }
+    current_page++;
+    if (flag == false) {
+        current_page = 1;
+    }
+    var detail_page_url = '#', img_path = "#";
+    var load_more_flag = false;
+    var exclude_ids = ((typeof jQuery('#exclude_ids_'+alias).val() !== "undefined" && jQuery('#exclude_ids_'+alias).val() != '') ? jQuery('#exclude_ids_'+alias).val() : '');
+    var exclude_ids_arr = ((exclude_ids != '') ? exclude_ids.split(",").map(Number) : '');
+    jQuery.ajax({
+        type: "POST",
+        url: iybaFrontendAjax.ajaxurl,
+        data: {
+            params: query + '&page=' + (current_page),
+            action: "iyba_filter_yachts",
+            id: iybaFrontendAjax.post_id,
+            security: iybaFrontendAjax.check_nonce,
+            brand: sel_brand,
+            type: sel_type,
+            category: sel_category
+        },
+        beforeSend: function () {},
+        success: function (response) {
+            var data = jQuery.parseJSON(response);
+            if (current_page == 1) {
+                vesselAdListDiv.empty();
+            }
+            waitForNextCall = false;
+            jQuery("#advertise_search_error_message_"+alias).html('').hide();
+            var vessels_html = '';
+            if (data.error_msg != '') {
+                jQuery("#advertise_search_error_message_"+alias).show().html(data.error_msg);
+                jQuery("#btnLoadMoreAdBoats_"+alias).hide();
+                no_result = true;
+                return false;
+            } else {
+                if (data['response']['total'] > 0) {
+                    var vessels = data['response']['V-Data'];
+                    if (vessels.length > 0) {
+                        load_more_flag = true;
+                        jQuery("#loadmore_ad_section_"+alias).remove();
+                        var remove_vesselName = ['no name', 'n/a', '-', '"'];
+                        var listingSubClass = ((typeof jQuery('#listing_sub_class_'+alias).val() !== "undefined" && jQuery('#listing_sub_class_'+alias).val() != '') ? jQuery('#listing_sub_class_'+alias).val() : 'col-md-4');
+                        jQuery('#btnLoadMoreAdBoats_'+alias).html('Load More').attr("disabled", false).show();
+                        for (var i = 0; i < vessels.length; i++) {
+                            if (jQuery.inArray(vessels[i]["ID"], exclude_ids_arr) >= 0) {
+                                continue;   // exclude specific vessels
+                            }
+                            var vesselSEOTitleAndAlterText = vessels[i]["DisplayLengthFeet"] + '-ft-' + vessels[i]["Manufacturer"] + '-' + vessels[i]["Year"] + '-' + vessels[i]["Model"] + '-' + vessels[i]["VesselName"] + ' ' + vessels[i]["City"] + ' ' + vessels[i]["State"] + ' ' + vessels[i]["Country"] + '  yacht for sale';
+                            var DisplayLengthFeet = (typeof vessels[i]["DisplayLengthFeet"] !== "undefined" && vessels[i]["DisplayLengthFeet"] != null && vessels[i]["DisplayLengthFeet"] != '') ? vessels[i]["DisplayLengthFeet"] + "' " : '';
+                            var vesselPrice_usd = (typeof vessels[i]["PriceUSD"] !== "undefined" && vessels[i]['PriceUSD'] <= 0 || vessels[i]['PriceUSD'] == null) ? "Call for pricing" : addCommas(vessels[i]['PriceUSD']);
+                            var seoTitleForVesselDetail = (vesselSEOTitleAndAlterText).seoURL({'transliterate': false, 'lowercase': true});
+                            var dispVesselName = (vessels[i]["VesselName"] != 'undefined' && vessels[i]["VesselName"] != '' && vessels[i]["VesselName"] != null && jQuery.inArray(vessels[i]["VesselName"].toLowerCase().trim(), remove_vesselName) == -1) ? vessels[i]["VesselName"].replace(/"/g, '') : '';
+                            var location = get_location_format_js(vessels[i]["City"], vessels[i]["State"], vessels[i]["Country"]);
+                            var map_link = location.replace(",", "+");
+                            detail_page_url = ((typeof data['response']['detail_page_url'] !== "undefined" && data['response']['detail_page_url'] != 'undefined' && data['response']['detail_page_url'] != '') ? data['response']['detail_page_url'] + '?id=' + vessels[i]["ListingOwnerID"] + '&title=' + seoTitleForVesselDetail + '&vessel=' + vessels[i]["ID"] : "#");
+                            
+                            if (jQuery("#hdn_img_path").val() != '') {
+                                img_path = jQuery("#hdn_img_path").val() + '/medium/' + vessels[i]["DisplayPicture"];
+                            }
+                            vessels_html += '<div class="'+ listingSubClass +' vessel-items grid_listing">';
+                            vessels_html += '<div class="vessel-listing-m gray-bg">';
+                            vessels_html += '<div class="vessel-listing-img post-thumbnail-wrap">';
+                            if(typeof vessels[i]['Status'] !== "undefined" && vessels[i]['Status'] != '' && vessels[i]["Status"] != null && vessels[i]["Status"].toLowerCase().trim() == 'under contract'){    
+                                vessels_html += '<div class="vessel-listing-img-flag">PENDING</div>';
+                            }
+                            vessels_html += '<div class="post-thumbnail"><a class="rollover post-thumbnail-rollover layzr-bg" href="' + ((detail_page_url != '') ? detail_page_url : '') + '" target="' + jQuery('#detail_page_target_'+alias).val() + '"><img itemprop="image" src="' + img_path + '" class="img-responsive vessel_image vessel_compare_image preload-me is-loaded" id="vessel_image" title="' + vesselSEOTitleAndAlterText + '" width="600px" height="400px" /><span class="gallery-zoom-ico icomoon-the7-font-the7-zoom-02"><span></span></span></a></div>';
+                            vessels_html += '</div>';
+                            vessels_html += '<div class="vessel-listing-content">';
+                            vessels_html += '<div class="vl-left-band">';
+                            vessels_html += '<h5><a href="' + ((detail_page_url != '') ? detail_page_url : '') + '" target="' + jQuery('#detail_page_target_'+alias).val() + '" class="lnk_vessel_title hasTooltip" title="' + vesselSEOTitleAndAlterText + '" alt="' + vesselSEOTitleAndAlterText + '">' + DisplayLengthFeet + (vessels[i]["Manufacturer"] || '') + '</a></h5>';
+                            vessels_html += '<div class="thing-process">' + (vessels[i]["Year"] || '') + ((typeof vessels[i]["RefitYear"] !== "undefined" && vessels[i]["RefitYear"] != null && vessels[i]["RefitYear"] > 0) ? " / " + vessels[i]["RefitYear"] : "") + ((typeof vessels[i]["Model"] !== "undefined" && vessels[i]["Model"] != '') ? ' ' + string_limit_words(vessels[i]["Model"], 15) : '') + '</div>';
+                            vessels_html += '</div>';
+                            if (typeof jQuery('#contact_image_'+alias).val() !== "undefined" && jQuery('#contact_image_'+alias).val() != '' && typeof jQuery('#default_brokerage_id_'+alias).val() !== "undefined" && jQuery('#default_brokerage_id_'+alias).val() != '' && typeof vessels[i]["ListingOwnerBrokerageID"] !== "undefined" && vessels[i]["ListingOwnerBrokerageID"] != null && jQuery('#default_brokerage_id_'+alias).val().trim() == vessels[i]["ListingOwnerBrokerageID"]) {
+                                vessels_html += '<div class="vl-right-band"><div class="listingBrokerage-logo">';
+                                vessels_html += '<img class="img-lblogo logo-hover" src="' + jQuery('#contact_image_'+alias).val() + '" title="' + vesselSEOTitleAndAlterText + '" alt="' + vesselSEOTitleAndAlterText + '" />';
+                                vessels_html += '</div></div>';
+                            }
+                            vessels_html += '<div class="vessel-location-grid"><a class="lnk_vessel_location" href="https://www.google.com/maps/place/' + map_link + '" target="_blank"><i class="fa fa-map-marker" aria-hidden="true"></i> ' + string_limit_words(location, 25) + '</a></div>';
+                            vessels_html += '<ul class="features_list">';
+                            vessels_html += '<li class="features_row_full">' + ((typeof vessels[i]["Category"] !== "undefined" && vessels[i]["Category"] != '') ? vessels[i]["Category"] : '') + ((typeof vessels[i]["SubCategory"] !== "undefined" && vessels[i]["SubCategory"] != '') ? '/' + vessels[i]["SubCategory"] : '') + '</li>';
+                            //Sold
+                            if(vessels[i]["Status"] != 'undefined' && vessels[i]["Status"] != '' && vessels[i]["Status"] != null && vessels[i]["Status"].toLowerCase().trim() == 'sold'){
+                                vessels_html += '<li class="grid-row-none"><span class="list-vessel-sold">SOLD</span></li>';
+                            }else{
+                                vessels_html += '<li class="grid-row-none list-vessel-price">';
+                                if(price_reduced_flag && typeof vessels[i]["LastPriceChange"]["OldPrice"] != 'undefined' && vessels[i]["LastPriceChange"]["OldPrice"] != '' && vessels[i]["LastPriceChange"]["OldPrice"] > 0 && vessels[i]["LastPriceChange"]["OldPrice"] != null && typeof vessels[i]["PriceUSD"] !== "undefined" && vessels[i]["PriceUSD"] > 0 && vessels[i]["LastPriceChange"]["OldPrice"] > vessels[i]["PriceUSD"]){
+                                    vessels_html += '<span class="list-vessel-new-price"><i class="vl-icon fa fa-dollar" aria-hidden="true"></i> ' + vesselPrice_usd +'</span>';
+                                    vessels_html += '<span class="list-vessel-old-price"><strike><i class="list-vessel-old-price-icon vl-icon fa fa-dollar" aria-hidden="true"></i> ' + addCommas(vessels[i]["LastPriceChange"]["OldPrice"]) + '</strike></span>';
+                                }else{
+                                    vessels_html += '<i class="vl-icon fa fa-dollar" aria-hidden="true"></i> <span class="compare-price"> ' + vesselPrice_usd + '</span>';
+                                }
+                                vessels_html += '</li>';
+                            }
+                            vessels_html += '<li class="grid-row-none"><i class="vl-icon fa fa-bed" aria-hidden="true"></i>';
+                            vessels_html += ((typeof vessels[i]["CabinCount"] !== "undefined" && vessels[i]["CabinCount"] != '') ? 'Cabins ' + vessels[i]["CabinCount"] : '');
+                            vessels_html += ((typeof vessels[i]["SleepCount"] !== "undefined" && vessels[i]["SleepCount"] != '') ?' Sleeps ' + vessels[i]["SleepCount"] : '');
+                            vessels_html += ((typeof vessels[i]["HeadCount"] !== "undefined" && vessels[i]["HeadCount"] != '') ? ' Heads ' + vessels[i]["HeadCount"] : '');
+                            vessels_html += '</li>';
+                            vessels_html += '<li class="grid-row-none"><i class="vl-icon fa fa-commenting" aria-hidden="true"></i>' + ((typeof vessels[i]["PriceHeadline"] !== "undefined" && vessels[i]["PriceHeadline"] != '') ? string_limit_words(vessels[i]["PriceHeadline"], 25) : '') + '</li>';
+                            vessels_html += '<li class="grid-row-none feature-setting"><i class="vl-icon fa fa-cogs" aria-hidden="true"></i>' + ((typeof vessels[i]["EngineQty"] !== "undefined" && vessels[i]["EngineQty"] > 0) ? vessels[i]["EngineQty"] + " " : "") + ((typeof vessels[i]["EngineMake"] !== "undefined" && vessels[i]["EngineMake"] != "") ? vessels[i]["EngineMake"] + " " : "") + ((typeof vessels[i]["EngineModel"] !== "undefined" && vessels[i]["EngineModel"] != "") ? string_limit_words(vessels[i]["EngineModel"], 10) : "") + '</li>';
+                            vessels_html += '<li class="vessel-name"><i class="vl-icon fa fa-ship" aria-hidden="true"></i>' + ((dispVesselName != '') ? string_limit_words(dispVesselName, 25) : '') + '</li>';
+                            vessels_html += '</ul>';
+                            vessels_html += '<div class="vessel-location"><a class="lnk_vessel_location" href="https://www.google.com/maps/place/' + map_link + '" target="_blank"><i class="fa fa-map-marker" aria-hidden="true"></i> ' + location + '</a></div>';
+                            //Sold
+                            if(vessels[i]["Status"] != 'undefined' && vessels[i]["Status"] != '' && vessels[i]["Status"] != null && vessels[i]["Status"].toLowerCase().trim() == 'sold'){
+                                vessels_html += '<div class="grid-vessel-sold">SOLD</div>';
+                            }else{
+                                vessels_html += '<div class="grid-vessel-price">';
+                                if(price_reduced_flag && typeof vessels[i]["LastPriceChange"]["OldPrice"] != 'undefined' && vessels[i]["LastPriceChange"]["OldPrice"] != '' && vessels[i]["LastPriceChange"]["OldPrice"] > 0 && vessels[i]["LastPriceChange"]["OldPrice"] != null && typeof vessels[i]["PriceUSD"] !== "undefined" && vessels[i]["PriceUSD"] > 0 && vessels[i]["LastPriceChange"]["OldPrice"] > vessels[i]["PriceUSD"]){
+                                    vessels_html += '<div class="grid-vessel-price-wrapper">';
+                                    vessels_html += '<div class="grid-vessel-new-price"><i class="vl-icon fa fa-dollar" aria-hidden="true"></i> ' + vesselPrice_usd +'</div>';
+                                    vessels_html += '<div class="grid-vessel-old-price"><strike><i class="vl-icon fa fa-dollar" aria-hidden="true"></i> ' + addCommas(vessels[i]["LastPriceChange"]["OldPrice"]) + '</strike></div>';
+                                    vessels_html += '</div>';
+                                }else{
+                                    vessels_html += '<div class="grid-vessel-price"><i class="vl-icon fa fa-dollar" aria-hidden="true"></i> ' + vesselPrice_usd + '</div>';
+                                }
+                                vessels_html += '</div>';
+                            }
+                            if (typeof jQuery('#contact_image_'+alias).val() !== "undefined" && jQuery('#contact_image_'+alias).val() != '' && typeof jQuery('#default_brokerage_id__'+alias) !== "undefined" && jQuery('#default_brokerage_id__'+alias) != '' && typeof vessels[i]["ListingOwnerBrokerageID"] !== "undefined" && vessels[i]["ListingOwnerBrokerageID"] != null && jQuery('#default_brokerage_id__'+alias) == vessels[i]["ListingOwnerBrokerageID"] ) {
+                                vessels_html += '<div class="vl-lo-right-band listingBrokerage-logo-wrapper">';
+                                vessels_html += '<img class="img-listingBrokerage-logo logo-hover" src="' + jQuery('#contact_image_'+alias).val() + '" title="' + vesselSEOTitleAndAlterText + '" alt="' + vesselSEOTitleAndAlterText + '" />';
+                                vessels_html += '</div>';
+                            }
+                            vessels_html += '</div>';
+                            vessels_html += '</div>';
+                            vessels_html += '</div>';
+                        }
+                        var iyba_counter_end = current_page * per_page_limit;
+                        if (parseInt(data.response.total) < parseInt(per_page_limit) || parseInt(data.response.total) < parseInt(iyba_counter_end)) {
+                            iyba_counter_end = data.response.total;
+                            no_result = true;
+                            load_more_flag = false;
+                            jQuery("#btnLoadMoreAdBoats_"+alias).hide();
+                        }
+                        
+                        if(load_more_flag){
+                            vessels_html += '<div class="col col-sm-12 loadmore_ad_section" id="loadmore_ad_section_'+alias+'">';
+                            vessels_html += '<button type="button" id="btnLoadMoreAdBoats_'+alias+'" class="btn btn-lg btnLoadMoreAdBoats btnLoadMoreAdBoats_'+alias+'" onclick="loadMoreAdBoats(' + "'" + alias + "'" + ',' + current_page + ',' + flag + ',' + reset + ',' + no_result + ',' + waitForNextCall + ')">Load More</button>';
+                            vessels_html += '</div>';
+                        }
+                        vesselAdListDiv.append(vessels_html);
+                        
+                    } else {
+                        if (current_page == 2) {
+                            no_result = true;
+                        } else {
+                            vesselAdListDiv.empty();
+                            jQuery("#advertise_search_error_message_"+alias).show().html('Sorry, your search did not match any of our listings. Refresh');
+                            jQuery("#btnLoadMoreAdBoats_"+alias).hide();
+                            load_more_flag = false;
+                        }
+                    }
+                } else {
+                    vesselAdListDiv.empty();
+                    jQuery("#advertise_search_error_message_"+alias).show().html('Sorry, your search did not match any of our listings. Refresh');
+                    jQuery("#btnLoadMoreAdBoats_"+alias).hide();
+                    load_more_flag = false;
+                }
+            }
+        },
+        error: function (jqXHR, textStatus, errorThrown) {
+            jQuery('#btn_reset_search').html('<i class="filter-icon fa fa-eraser" aria-hidden="true"></i> Reset').attr("disabled", false);
+            jQuery('#btn_search_vessel').html('<i class="filter-icon fa fa-search" aria-hidden="true"></i> Search').attr("disabled", false);
+            if (textStatus == 'error') {
+                vesselAdListDiv.empty();
+                jQuery("#advertise_search_error_message").show().html('Sorry, your search did not match any of our listings. Refresh');
+                jQuery("#btnLoadMoreAdBoats_"+alias).hide();
+            }
+        },
+        cache: false
+    });
+}
+
+function loadMoreAdBoats(alias, current_page, flag, reset, no_result, waitForNextCall) {
+    if (flag == false) {
+        current_page = 1;
+    }
+    flag = true;
+    if (no_result == false) {
+        jQuery("#btnLoadMoreAdBoats_"+alias).show().html('Loading... <i class="filter-icon fa fa-spinner" aria-hidden="true"></i>').attr("disabled", true);
+        load_advertise_yachts(alias, current_page, flag, reset, no_result, waitForNextCall);
+    }
+}
+
+function string_limit_words(str, limit) {
+    var ending = '...';
+    if (typeof str !== "undefined" && str != '' && str.length > limit) {
+        return str.substring(0, limit) + ending;
+    } else {
+        return str;
+    }
+}
